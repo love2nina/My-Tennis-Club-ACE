@@ -232,7 +232,7 @@ if 'is_admin' not in st.session_state: st.session_state.is_admin = False
 df_rank = get_ranking_statistics()
 names = sorted(df_rank['이름'].tolist()) if not df_rank.empty else []
 
-st.title("🎾 테니스 매니저 AI Pro (Cloud)")
+st.title("🎾 평촌에이스 최고수는 누굴까?")
 
 with st.sidebar:
     st.header("🔐 관리자 접속")
