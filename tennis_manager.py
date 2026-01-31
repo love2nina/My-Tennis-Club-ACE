@@ -593,7 +593,7 @@ if st.session_state.is_admin:
                 updated_matches = []
                 # 현재 등록된 전체 선수 명단 가져오기
                 current_players_df = get_players()
-                registered_names = current_players_df['name'].tolist()
+                registered_names = get_players()['name'].tolist() if not get_players().empty else []
                 
                 for i, m in enumerate(match_list):
                     st.markdown(f"**[경기 {i+1}]**")
@@ -607,11 +607,12 @@ if st.session_state.is_admin:
                     temp_names = sorted(list(set(registered_names + [raw_w1, raw_w2, raw_l1, raw_l2])))
                     
                     with c1:
-                        mw1 = st.selectbox(f"승자1", temp_names, index=temp_names.index(raw_w1) if raw_w1 in temp_names else 0, key=f"w1_{i}")
-                        mw2 = st.selectbox(f"승자2", temp_names, index=temp_names.index(raw_w2) if raw_w2 in temp_names else 0, key=f"w2_{i}")
+                        # selectbox 대신 text_input으로 변경하여 자유로운 수정 허용
+                        mw1 = st.text_input(f"승자1", value=raw_w1, key=f"w1_{i}")
+                        mw2 = st.text_input(f"승자2", value=raw_w2, key=f"w2_{i}")
                     with c2:
-                        ml1 = st.selectbox(f"패자1", temp_names, index=temp_names.index(raw_l1) if raw_l1 in temp_names else 0, key=f"l1_{i}")
-                        ml2 = st.selectbox(f"패자2", temp_names, index=temp_names.index(raw_l2) if raw_l2 in temp_names else 0, key=f"l2_{i}")
+                        ml1 = st.text_input(f"패자1", value=raw_l1, key=f"l1_{i}")
+                        ml2 = st.text_input(f"패자2", value=raw_l2, key=f"l2_{i}")
                     with c3:
                         msc = st.text_input(f"점수", m.get('score', '6:0'), key=f"sc_{i}")
                     
