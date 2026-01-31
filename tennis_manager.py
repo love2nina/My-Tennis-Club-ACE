@@ -400,7 +400,7 @@ def display_player_trend(player_name):
         
         # 4. 그래프 생성
         fig = px.line(df_plot, x='차수', y='ELO', 
-                     title=f"📈 {player_name} 도토리 실력 변동 추이 (전체 차수 기준)",
+                     title=f"📈 {player_name} 도토리",
                      markers=True,
                      text=df_plot['ELO'].apply(lambda x: f"{int(x)}"))
         
@@ -486,7 +486,7 @@ with tabs[0]:
 
     st.divider()       
     
-    st.subheader("📊 상위 도토리 실력 분포")
+    st.subheader("📊 도토리 키재기")
     # df_rank가 비어있지 않을 때만 그래프를 그립니다.
     if not df_rank.empty:
         # 데이터가 10개보다 적을 수도 있으므로 안전하게 head(10)
@@ -503,11 +503,11 @@ with tabs[0]:
     st.divider()
 
     
-    st.subheader("🔍 도토리 실력 추이 분석")
+    st.subheader("🔍 도토리 실력 추이")
 
     # 랭킹에 있는 이름 리스트 사용
     if not df_rank.empty:
-        player_to_show = st.selectbox("그래프를 확인할 도토리를 선택하세요", df_rank['이름'].tolist())
+        player_to_show = st.selectbox("그래프로 확인할 도토리를 선택하세요", df_rank['이름'].tolist())
         if player_to_show:
             display_player_trend(player_to_show)
     else:
