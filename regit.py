@@ -71,7 +71,7 @@ else:
 st.divider()
 with st.expander("🛠 운영자 전용 (신청 관리)"):
     admin_password = st.text_input("관리자 비밀번호", type="password")
-    if admin_password == "your_password": # 실제 사용할 비밀번호 설정
+    if admin_password == "1111": # 실제 사용할 비밀번호 설정
         current_status = is_registration_open()
         
         if current_status:
