@@ -24,7 +24,7 @@ def init_firebase():
     return firestore.client()
 
 db = init_firebase()
-APP_ID = "Good_Morning_beta"
+APP_ID = "Good_Morning_v1"
 
 ADMIN_PASSWORD = "1111" 
 GEMINI_MODEL = "gemini-2.5-flash-preview-09-2025" 
