@@ -89,10 +89,14 @@ def get_next_round_name():
     
     return next_round_name
 
-def save_match_to_cloud(match_data):
+def save_match_to_cloud(match_data, w_avg, l_avg):
     """경기 결과 저장 및 해당 시점의 ELO 히스토리 즉시 기록"""
     if not db: return
     
+    # 경기 데이터에 당시 계산 기준 점수 추가
+    match_data['w_avg_at_match'] = w_avg
+    match_data['l_avg_at_match'] = l_avg
+
     # 1. 경기 데이터 저장
     matches_ref = db.collection('artifacts', APP_ID, 'public', 'data', 'matches')
     _, match_doc_ref = matches_ref.add(match_data)
@@ -215,7 +219,9 @@ def recalculate_all_cloud_data():
             # 경기 문서 업데이트 (당시 기대승률과 변동폭 저장)
             db.collection('artifacts', APP_ID, 'public', 'data', 'matches').document(row['id']).update({
                 "elo_change": diff, 
-                "expected_win": exp
+                "expected_win": exp,
+                "w_avg_at_match": w_avg, # 이 값이 저장되어야 히스토리에 정확히 나옵니다.
+                "l_avg_at_match": l_avg
             })
             
             # 변동폭 누적 (차수 종료 후 반영하기 위함)
@@ -246,12 +252,22 @@ def get_ranking_statistics():
     df_m = get_matches()
     if df_p.empty: return pd.DataFrame()
     
-    stats = {n: {'이름': n, 'ELO 점수': e, '승': 0, '무': 0, '패': 0, '득': 0, '실': 0} 
+    # 전체 진행된 총 차수 구하기
+    total_rounds_count = df_m['round'].nunique() if not df_m.empty else 0 #
+
+    stats = {n: {'이름': n, 'ELO 점수': e, '승': 0, '무': 0, '패': 0, '득': 0, '실': 0, '참여차수': set()} 
              for n, e in zip(df_p['name'], df_p['elo'])}
     
     if not df_m.empty:
         for _, row in df_m.iterrows():
             w1, w2, l1, l2 = row['winner1'], row['winner2'], row['loser1'], row['loser2']
+            rnd = row['round']
+
+            # 참여한 차수 기록 (중복 제거를 위해 set 사용)
+            for p in [w1, w2, l1, l2]:
+                if p in stats: stats[p]['참여차수'].add(rnd) #
+
+
             try:
                 s_parts = row['score'].split(':')
                 s_win, s_loss = int(s_parts[0]), int(s_parts[1])
@@ -273,6 +289,9 @@ def get_ranking_statistics():
 
     res = []
     for n, s in stats.items():
+        played_rounds = len(s['참여차수']) #
+        attendance = (played_rounds / total_rounds_count * 100) if total_rounds_count > 0 else 0
+        
         # 경기수 계산
         total = s['승'] + s['무'] + s['패']
         wr = (s['승'] / total * 100) if total > 0 else 0
@@ -281,7 +300,8 @@ def get_ranking_statistics():
             'ELO 점수': int(round(s['ELO 점수'])),
             '경기수': total, # ⭐ '경기수' 컬럼을 명시적으로 추가
             '승': s['승'], '무': s['무'], '패': s['패'], 
-            '득실': s['득'] - s['실'], '승률': int(round(wr))
+            '득실': s['득'] - s['실'], '승률': int(round(wr)),
+            '출석률': int(round(attendance))
         })
     
     df = pd.DataFrame(res)
@@ -538,7 +558,7 @@ if st.session_state.is_admin:
                             "elo_change": diff,
                             "expected_win": exp,
                             "timestamp": datetime.now().isoformat()
-                        })
+                        },w_avg,l_avg)
                         st.success(f"✅ {m_round} 경기 저장 완료!")
                         st.rerun()
         st.divider()
@@ -633,7 +653,7 @@ if st.session_state.is_admin:
                             "elo_change": diff,
                             "expected_win": exp,
                             "timestamp": datetime.now().isoformat()
-                        })
+                        }, w_avg, l_avg)
                         success_count += 1
                     
                     st.success(f"✅ {success_count}개의 경기가 저장되었습니다!")
@@ -648,28 +668,25 @@ with tabs[idx_rank]:
     df_rank = get_ranking_statistics()
     
     if not df_rank.empty:
-        # 1. 표시용 데이터 가공
         display_df = df_rank.copy()
+        # 승률과 출석률에 % 기호 붙이기
         display_df['승률'] = display_df['승률'].astype(str) + "%"
+        display_df['출석률'] = display_df['출석률'].astype(str) + "%" # 신규 추가
         
-        # 2. Pandas Styler를 이용한 가운데 정렬 및 스타일 설정
         styled_rank = display_df.style.set_properties(**{
-            'text-align': 'center',           # 모든 셀 가운데 정렬
+            'text-align': 'center',
             'vertical-align': 'middle'
         }).set_table_styles([
-            # 헤더(th) 스타일 설정
             {'selector': 'th', 'props': [
                 ('text-align', 'center'), 
                 ('background-color', '#f0f2f6'), 
                 ('color', '#31333f'),
                 ('font-weight', 'bold')
-            ]},
-            # 테이블 너비 100% 설정
-            {'selector': '', 'props': [('width', '100%')]}
-        ]).hide(axis='index') # 인덱스 숨기기
+            ]}
+        ]).hide(axis='index')
         
-        # 3. HTML로 변환하여 출력 (unsafe_allow_html=True 필수)
-        st.write(styled_rank.to_html(), unsafe_allow_html=True)
+        st.write(styled_rank.to_html(), unsafe_allow_html=True) #
+        
     else:
         st.info("도토리 데이터가 없습니다.")
 
@@ -689,10 +706,27 @@ with tabs[idx_hist]:
         p_elo_dict = dict(zip(df_p['name'], df_p['elo']))
         
         def process_row(row):
-            w_avg = (p_elo_dict.get(row['winner1'], 1500) + p_elo_dict.get(row['winner2'], 1500)) / 2
-            l_avg = (p_elo_dict.get(row['loser1'], 1500) + p_elo_dict.get(row['loser2'], 1500)) / 2
-            win_exp = f"{int(row.get('expected_win', 0.5) * 100)}%"
-            return int(w_avg), int(l_avg), win_exp
+            # 1. DB에 '당시 계산 기준 점수'가 저장되어 있다면 최우선으로 사용
+            w_avg = row.get('w_avg_at_match')
+            l_avg = row.get('l_avg_at_match')
+            
+            # 2. 저장된 값이 없는 과거 데이터의 경우 (재계산 로직 보완)
+            if pd.isna(w_avg) or w_avg is None:
+                # 해당 차수의 시작 시점 점수를 가져오도록 함수 호출
+                start_elos = get_round_start_elos(row['round'])
+                
+                w1_elo = start_elos.get(row['winner1'], 1500.0)
+                w2_elo = start_elos.get(row['winner2'], 1500.0)
+                w_avg = (w1_elo + w2_elo) / 2
+                
+                l1_elo = start_elos.get(row['loser1'], 1500.0)
+                l2_elo = start_elos.get(row['loser2'], 1500.0)
+                l_avg = (l1_elo + l2_elo) / 2
+                
+            win_exp_val = row.get('expected_win', 0.5)
+            win_exp = f"{int(win_exp_val * 100)}%"
+            
+            return int(round(w_avg)), int(round(l_avg)), win_exp
 
         df_history[['승자평균', '패자평균', '승률']] = df_history.apply(
             lambda x: pd.Series(process_row(x)), axis=1
